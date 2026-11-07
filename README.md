@@ -3,6 +3,8 @@
 面向 Windows 的**系统声卡回环录音工具**。它采集电脑正在播放的声音（WASAPI Loopback），支持多种输出格式，旨在采集最原始的系统音频。默认使用设备原生采样率与 32-bit 浮点混音格式，避免应用层重采样和额外压缩。界面使用 PySide6 + 自绘控件，包含实时波形、频谱、双声道电平、文件试听、定时录制、自动分割、系统托盘与调试日志。
 
 - **声明**：工具主要由**AI**通过DeepSeek Harness 0.2.1-rc2开发（主开发模型：DeepSeek-V4.1-Flash 1017、Qwen-3.8 flash，辅助模型Reflection Beam 1.0、NVIDIA Nemotron 3.5 Super VL）。开发者LCode参与了界面优化、功能调试测试、功能完善等。最终版权归LCode所有。
+- **特别鸣谢**：zplb：[了解zplb](https://zplb.top "zplb个人主页")
+- **开发者**：LCode：[了解LCode](https://l-code.top "LCode个人博客")
 - **此工具以 Apache 2.0 协议开源，详见LICENSE文件**
 
 ---
@@ -111,7 +113,9 @@ FFmpeg 仅用于 ALAC / MP3 / AAC / OGG。WAV 和 FLAC 不依赖 FFmpeg。
 
 ### 方式二：手动
 
-```bat
+文档目前不提供python虚拟环境安装方法，可以自行尝试。以下提供全局python安装方法：
+
+```bash
 cd /d "<Orbit根目录绝对路径>"
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
@@ -125,7 +129,7 @@ python -m pip install -r requirements.txt
 
 安装到当前 Python 环境，之后可在任意目录用 `orbit` 命令启动：
 
-```bat
+```bash
 cd /d "<Orbit根目录绝对路径>"
 python -m pip install -e .
 orbit
@@ -145,7 +149,7 @@ orbit --version
 
 验证：
 
-```bat
+```bash
 ffmpeg -version
 ffmpeg -hide_banner -encoders | findstr /i "alac aac libmp3lame libvorbis"
 ```
@@ -241,7 +245,7 @@ ffmpeg -hide_banner -encoders | findstr /i "alac aac libmp3lame libvorbis"
 
 ### 命令行诊断
 
-```bat
+```bash
 python run.py --diagnose
 python run.py --version
 python run.py --reset-config
@@ -365,7 +369,7 @@ Orbit_windows/
 
 ## 测试
 
-```bat
+```bash
 python -m pip install -r requirements-dev.txt
 python -m pytest
 ```
@@ -383,7 +387,7 @@ python -m pytest
 
 开发期实测脚本（会访问真实音频设备）：
 
-```bat
+```bash
 python tools\capture_all.py          # 生成全套深色主题截图（8 张）
 python tools\screenshot_settings.py  # 设置/诊断对话框截图
 python tools\screenshot_ui.py        # 旧版界面截图脚本
