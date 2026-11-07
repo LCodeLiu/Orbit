@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import PySide6
 import soundfile as sf
-from PySide6.QtCore import QTime, QTimer
+from PySide6.QtCore import QTime, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
 from orbit import __version__
 from orbit.audio.devices import enumerate_devices
 from orbit.audio.ffmpeg import inspect_ffmpeg
-from orbit.config import AppConfig
+from orbit.config import AppConfig, ConfigStore
 from orbit.ui.theme import Colors, icon, _apply_dark_titlebar as _apply_dark_titlebar
 
 from orbit.util.paths import (
@@ -83,11 +83,16 @@ def _section(title: str, subtitle: str = "") -> tuple[QFrame, QVBoxLayout]:
 
 
 class SettingsDialog(QDialog):
+    """设置对话框：任何控件变更立即写入配置并生效。"""
+
+    changed = Signal()
+
     def __init__(
         self,
         cfg: AppConfig,
         tray_available: bool = True,
         parent: QWidget | None = None,
+        store: ConfigStore | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("设置 · Orbit")
@@ -95,9 +100,11 @@ class SettingsDialog(QDialog):
         self.setModal(True)
         self.resize(720, 640)
         self.setMinimumSize(660, 560)
-        self.cfg = AppConfig.from_dict(cfg.to_dict())
+        self.cfg = cfg
         self.result_config = cfg
         self._tray_available = tray_available
+        self._store = store
+        self._loading = True
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 16)
@@ -111,7 +118,7 @@ class SettingsDialog(QDialog):
         titles.setSpacing(1)
         title = QLabel("设置")
         title.setStyleSheet("font-size: 20px; font-weight: 650; color: #F4F6FC;")
-        subtitle = QLabel("更改会在保存后立即生效；录音进行中时部分选项不可用。")
+        subtitle = QLabel("更改会自动保存并立即生效；录音进行中时部分选项不可用。")
         subtitle.setObjectName("Muted")
         titles.addWidget(title)
         titles.addWidget(subtitle)
@@ -131,7 +138,7 @@ class SettingsDialog(QDialog):
         self.path_hint = QLabel("")
         self.path_hint.setObjectName("Tiny")
         footer.addWidget(self.path_hint, 1)
-        cancel = QPushButton("取消")
+        cancel = QPushButton("关闭")
         cancel.setObjectName("Ghost")
         cancel.clicked.connect(self.reject)
         save = QPushButton("保存设置")
@@ -139,6 +146,9 @@ class SettingsDialog(QDialog):
         save.clicked.connect(self._save)
         footer.addWidget(cancel)
         footer.addWidget(save)
+
+        self._connect_autosave()
+        self._loading = False
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -399,7 +409,25 @@ class SettingsDialog(QDialog):
         dialog = DiagnosticsDialog(self)
         dialog.exec()
 
-    def _save(self) -> None:
+    def _connect_autosave(self) -> None:
+        """把所有控件的信号接到自动保存。"""
+        pairs = [
+            (self.buffer_spin, self.buffer_spin.valueChanged),
+            (self.max_spin, self.max_spin.valueChanged),
+            (self.split_min_spin, self.split_min_spin.valueChanged),
+            (self.split_mb_spin, self.split_mb_spin.valueChanged),
+            (self.schedule_check, self.schedule_check.toggled),
+            (self.schedule_time, self.schedule_time.timeChanged),
+            (self.tray_check, self.tray_check.toggled),
+            (self.notify_check, self.notify_check.toggled),
+            (self.hotkey_check, self.hotkey_check.toggled),
+            (self.ffmpeg_edit, self.ffmpeg_edit.textChanged),
+            (self.level_combo, self.level_combo.currentIndexChanged),
+        ]
+        for _widget, signal in pairs:
+            signal.connect(self._on_widget_changed)
+
+    def _collect(self) -> None:
         cfg = self.cfg
         cfg.buffer_ms = self.buffer_spin.value()
         cfg.max_minutes = self.max_spin.value()
@@ -414,6 +442,26 @@ class SettingsDialog(QDialog):
         cfg.log_level = self.level_combo.currentData() or "INFO"
         cfg.normalize()
         self.result_config = cfg
+
+    def _on_widget_changed(self, *_args) -> None:
+        if self._loading:
+            return
+        self._collect()
+        if self._store is not None:
+            try:
+                self._store.save(self.cfg)
+            except Exception as exc:
+                log.exception("设置自动保存失败：%s", exc)
+        self.changed.emit()
+
+    def _save(self) -> None:
+        self._collect()
+        if self._store is not None:
+            try:
+                self._store.save(self.cfg)
+            except Exception as exc:
+                log.exception("设置保存失败：%s", exc)
+        self.changed.emit()
         self.accept()
 
 class DiagnosticsDialog(QDialog):

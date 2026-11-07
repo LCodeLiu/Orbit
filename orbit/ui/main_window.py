@@ -1278,25 +1278,35 @@ class MainWindow(QMainWindow):
         if self._recorder.active:
             self._show_alert("录音进行中", "请先停止录音，再修改高级设置。")
             return
-        dialog = SettingsDialog(self.cfg, QSystemTrayIcon.isSystemTrayAvailable(), self)
-        if dialog.exec() == SettingsDialog.DialogCode.Accepted:
-            self.cfg = dialog.result_config
-            self.store.save(self.cfg)
-            set_log_level(self.cfg.log_level)
-            self.detail_check.blockSignals(True)
-            self.detail_check.setChecked(self.cfg.log_level == "DEBUG")
-            self.detail_check.blockSignals(False)
-            if self.cfg.log_level == "DEBUG":
-                self.log_filter.setCurrentIndex(0)
-                self.log_console.set_min_level(10)
-            self._setup_hotkeys()
-            self._update_split_hint()
-            self._update_output_hints()
-            self._update_source_hints()
-            self._reschedule_daily()
-            if self.cfg.close_to_tray and not QSystemTrayIcon.isSystemTrayAvailable():
-                self._show_alert("系统托盘不可用", "当前环境没有系统托盘，关闭窗口将直接退出。")
-            self.footer_state.setText("设置已保存")
+        dialog = SettingsDialog(
+            self.cfg,
+            QSystemTrayIcon.isSystemTrayAvailable(),
+            self,
+            store=self.store,
+        )
+        dialog.changed.connect(self._on_settings_changed)
+        dialog.exec()
+        # 对话框关闭后同步一次界面（自动保存已生效，这里只刷新显示）
+        self._on_settings_changed()
+
+    def _on_settings_changed(self) -> None:
+        """设置对话框中任何变更实时生效。"""
+        # 对话框关闭时不再重复应用
+        set_log_level(self.cfg.log_level)
+        self.detail_check.blockSignals(True)
+        self.detail_check.setChecked(self.cfg.log_level == "DEBUG")
+        self.detail_check.blockSignals(False)
+        if self.cfg.log_level == "DEBUG":
+            self.log_filter.setCurrentIndex(0)
+            self.log_console.set_min_level(10)
+        self._setup_hotkeys()
+        self._update_split_hint()
+        self._update_output_hints()
+        self._update_source_hints()
+        self._reschedule_daily()
+        if self.cfg.close_to_tray and not QSystemTrayIcon.isSystemTrayAvailable():
+            self._show_alert("系统托盘不可用", "当前环境没有系统托盘，关闭窗口将直接退出。")
+        self.footer_state.setText("设置已保存")
 
     # ================================================================== 日志
     def _on_log(self, timestamp: str, level: str, message: str) -> None:

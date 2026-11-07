@@ -14,7 +14,7 @@
 
 """配置持久化。
 
-配置保存在 %APPDATA%\\Orbit\\config.json。
+配置保存在 .\\data\\config.json。
 使用原子替换写入，损坏的配置会被备份并回退到默认值。
 """
 
@@ -141,91 +141,47 @@ class ConfigStore:
     def __init__(self, path: Path | None = None) -> None:
         self.path = Path(path) if path else config_path()
 
-    def _candidate_paths(self) -> list[Path]:
-        """返回可尝试的配置文件路径列表（主路径 + 备用路径）。"""
-        paths = [self.path]
-        # 备用1：应用安装目录
-        try:
-            app_dir = Path(__file__).resolve().parents[2]
-            paths.append(app_dir / "config.json")
-        except Exception:
-            pass
-        # 备用2：系统临时目录
-        try:
-            paths.append(Path(tempfile.gettempdir()) / "Orbit" / "config.json")
-        except Exception:
-            pass
-        return paths
-
-    def _find_writable_path(self) -> Path | None:
-        """找到第一个可写入的路径，返回 None 表示全部不可写。"""
-        for p in self._candidate_paths():
-            try:
-                p.parent.mkdir(parents=True, exist_ok=True)
-                test = p.parent / ".write_test"
-                with open(test, "w") as f:
-                    f.write("ok")
-                test.unlink()
-                return p
-            except (PermissionError, OSError):
-                continue
-        return None
-
     def load(self) -> AppConfig:
-        for p in self._candidate_paths():
-            if p.exists():
-                try:
-                    raw = json.loads(p.read_text(encoding="utf-8"))
-                    payload = raw.get("settings", raw) if isinstance(raw, dict) else {}
-                    cfg = AppConfig.from_dict(payload)
-                    self.path = p
-                    log.info("已加载配置：%s", self.path)
-                    return cfg
-                except Exception as exc:
-                    log.warning("配置加载失败 %s：%s", p, exc)
-                    backup = p.with_name(
-                        f"config.broken-{datetime.now():%Y%m%d-%H%M%S}.json"
-                    )
-                    try:
-                        p.replace(backup)
-                        log.error("配置损坏，已备份到 %s：%s", backup, exc)
-                    except OSError:
-                        log.exception("配置损坏且备份失败：%s", exc)
-        cfg = AppConfig()
-        log.info("首次运行或无可用配置，使用默认值")
-        return cfg
+        if not self.path.exists():
+            cfg = AppConfig()
+            log.info("首次运行，使用默认配置：%s", self.path)
+            return cfg
+        try:
+            raw = json.loads(self.path.read_text(encoding="utf-8"))
+            payload = raw.get("settings", raw) if isinstance(raw, dict) else {}
+            cfg = AppConfig.from_dict(payload)
+            log.info("已加载配置：%s", self.path)
+            return cfg
+        except Exception as exc:
+            backup = self.path.with_name(
+                f"config.broken-{datetime.now():%Y%m%d-%H%M%S}.json"
+            )
+            try:
+                self.path.replace(backup)
+                log.error("配置损坏，已备份到 %s：%s", backup, exc)
+            except OSError:
+                log.exception("配置损坏且备份失败：%s", exc)
+            return AppConfig()
 
     def save(self, cfg: AppConfig) -> None:
         cfg.normalize()
+        self.path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "version": 1,
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "settings": cfg.to_dict(),
         }
         text = json.dumps(payload, ensure_ascii=False, indent=2)
-
-        target = self._find_writable_path()
-        if target is None:
-            raise PermissionError(
-                "无法写入任何配置路径。请检查文件权限或关闭防病毒软件的受控文件夹访问。"
-            )
-
-        target.parent.mkdir(parents=True, exist_ok=True)
-        fd, tmp_name = tempfile.mkstemp(prefix="config-", suffix=".tmp")
+        # 原子写入：临时文件 + os.replace
+        fd, tmp_name = tempfile.mkstemp(
+            prefix="config-", suffix=".tmp", dir=str(self.path.parent)
+        )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
                 handle.write(text)
                 handle.flush()
                 os.fsync(handle.fileno())
-            try:
-                os.replace(tmp_name, target)
-            except OSError:
-                log.warning("原子替换失败，回退到直接写入: %s", target)
-                with open(target, "w", encoding="utf-8") as f:
-                    f.write(text)
-                    f.flush()
-                    os.fsync(f.fileno())
-            self.path = target
+            os.replace(tmp_name, self.path)
             log.info("配置已保存：%s", self.path)
         finally:
             if os.path.exists(tmp_name):
