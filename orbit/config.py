@@ -57,10 +57,14 @@ class AppConfig:
     max_minutes: int = 0
     schedule_enabled: bool = False
     schedule_time: str = "23:00"
+    silent_auto_stop_enabled: bool = False
+    silent_timeout_seconds: int = 6
+    discard_silent_files: bool = False
 
     # 系统集成
     close_to_tray: bool = True
     notify_on_complete: bool = True
+    lossy_format_warning_enabled: bool = True
     hotkeys_enabled: bool = False
     tray_hint_shown: bool = False
 
@@ -96,6 +100,7 @@ class AppConfig:
         self.split_minutes = max(0, min(24 * 60, int(self.split_minutes or 0)))
         self.split_size_mb = max(0, min(64 * 1024, int(self.split_size_mb or 0)))
         self.max_minutes = max(0, min(24 * 60, int(self.max_minutes or 0)))
+        self.silent_timeout_seconds = max(1, min(60, int(self.silent_timeout_seconds or 6)))
 
         if self.log_level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
             self.log_level = "INFO"

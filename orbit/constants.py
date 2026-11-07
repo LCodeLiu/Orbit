@@ -19,7 +19,7 @@ from __future__ import annotations
 APP_NAME = "Orbit"
 APP_NAME_CN = "Orbit音频采集"
 ORG_NAME = "Orbit"
-VERSION = "1.0.8"
+VERSION = "1.0.9"
 BACKEND_NAME = "WASAPI Loopback"
 WINDOW_TITLE = "Orbit 音频采集"
 

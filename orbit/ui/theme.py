@@ -305,14 +305,23 @@ QComboBox QAbstractItemView::item {{
 QComboBox QAbstractItemView::item:selected {{
     background-color: {Colors.BORDER_HOVER};
 }}
+QSpinBox QLineEdit, QDoubleSpinBox QLineEdit, QTimeEdit QLineEdit {{
+    padding: 0px 2px;
+    background: transparent;
+    border: none;
+    color: {Colors.TEXT};
+}}
 QLineEdit#PathEdit {{
     font-family: "Consolas";
     font-size: 11px;
 }}
+/* 隐藏微调按钮：用宽度 0 实现（不要用 ButtonSymbols.NoButtons，
+   Qt 在 QStyleSheetStyle 下会把 NoButtons 的 QSpinBox 内部 QLineEdit 压成 1px 宽，文字不可见） */
 QSpinBox::up-button, QSpinBox::down-button,
 QDoubleSpinBox::up-button, QDoubleSpinBox::down-button,
 QTimeEdit::up-button, QTimeEdit::down-button {{
-    width: 17px;
+    width: 0px;
+    height: 0px;
     border: none;
     background: transparent;
 }}

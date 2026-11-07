@@ -1420,6 +1420,9 @@ class MainWindow(QMainWindow):
             split_bytes=self.cfg.split_bytes,
             ffmpeg_path=self.cfg.ffmpeg_path,
             max_seconds=self.cfg.max_seconds,
+            silent_auto_stop_enabled=self.cfg.silent_auto_stop_enabled,
+            silent_timeout_seconds=self.cfg.silent_timeout_seconds,
+            discard_silent_files=self.cfg.discard_silent_files,
         )
 
     def _start_recording(self, scheduled: bool = False) -> None:
@@ -1435,7 +1438,7 @@ class MainWindow(QMainWindow):
             if scheduled:
                 log.warning("定时录制使用有损格式：%s", fmt.label)
                 self._lossy_notice_shown = True
-            elif not self._confirm(
+            elif self.cfg.lossy_format_warning_enabled and not self._confirm(
                 "使用有损格式？",
                 f"{fmt.label} 为有损压缩，无法保留原始音频的全部细节。"
                 "如果目标是保留音质差异，建议使用 WAV 或 FLAC。",

@@ -14,7 +14,8 @@ dist/
 .testdata/
 docs/crop_*.png
 *.log
-*.json
+data/*.json
+tools/
 
 # IDE
 .idea/

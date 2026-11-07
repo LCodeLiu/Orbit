@@ -50,10 +50,6 @@
 
 ![调试日志](docs/logs.png)
 
-- **运行环境诊断**
-
-![运行环境诊断](docs/diagnostics.png)
-
 ---
 
 ## 音质说明
@@ -141,11 +137,8 @@ orbit --version
 
 ### 安装 FFmpeg（ALAC / 有损格式需要）
 
-任选一种：
-
 - 下载 Windows 版 FFmpeg，将FFmpeg根目录下的 `bin` 目录加入环境变量 `PATH`；
-- 源码运行时，也可把 `ffmpeg.exe` 放到项目下的 `tools\\ffmpeg\\bin\\ffmpeg.exe`；
-- 或在应用内打开 **设置 → 系统集成 → FFmpeg**，手动选择 `ffmpeg.exe`。
+- 应用内打开 **设置 → 系统集成 → FFmpeg**，点击**检测**可以自动扫描ffmpeg，或手动选择 `ffmpeg.exe`。
 
 验证：
 
@@ -336,9 +329,9 @@ Orbit_windows/
 │  │  └─ shell.py             # 回收站移除（SHFileOperationW）
 │  └─ assets/                 # 静态资源
 │     ├─ app.ico / app.png    # 应用图标
-│     └─ logo.svg             # Logo
-├─ tests/                     # pytest 单元测试（29 个）
-├─ tools/                     # 开发期诊断与截图脚本
+│     ├─ logo.svg             # Logo
+│     └─ icons/               # 界面图标（16 个 SVG：播放/暂停/停止/设置/终端等）
+├─ tests/                     # pytest 单元测试（7 个文件 / 29 个用例）
 ├─ docs/                      # README 截图（8 张，深色主题）
 ├─ data/                      # 运行时生成：config.json（项目内）
 ├─ logs/                      # 运行时生成：app.log（项目内）
@@ -384,30 +377,6 @@ python -m pytest
 - 采样率/格式能力校验；
 - 日志文件不可写时的降级与备用日志清理；
 - PortAudio 流占用登记与释放（防计数泄漏、等待交接）。
-
-开发期实测脚本（会访问真实音频设备）：
-
-```bash
-python tools\capture_all.py          # 生成全套深色主题截图（8 张）
-python tools\screenshot_settings.py  # 设置/诊断对话框截图
-python tools\screenshot_ui.py        # 旧版界面截图脚本
-python tools\probe_sinks.py           # WAV/FLAC 写入
-python tools\probe_ffmpeg.py          # ALAC/MP3/AAC/OGG 转码
-python tools\probe_recorder.py        # 真实回环录音（各格式）
-python tools\probe_audio_quality.py   # 播放测试音并检查频率/电平
-python tools\probe_recorder_split.py  # 自动分割/最长时长/无效设备
-python tools\probe_formats_capture.py # 16-bit / 单声道 / 非原生采样率
-python tools\probe_player.py          # QtMultimedia 试听各格式
-python tools\probe_volume.py          # 试听音量滑块/静音/配置持久化
-python tools\probe_monitor.py         # 空闲实时监听与录制红点
-python tools\probe_hotkeys.py         # 全局热键注册与 WM_HOTKEY 处理
-python tools\probe_handoff.py         # 监听↔录音设备交接（流占用/释放，多轮）
-python tools\check_runpyw.py          # run.pyw 端到端：启动→录音→校验→干净退出
-```
-
-`probe_*` 会访问真实声卡和输出目录，建议在无人使用电脑时运行。
-
----
 
 ## 已知限制
 
