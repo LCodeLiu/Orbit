@@ -127,9 +127,11 @@ class Recorder(QObject):
         self._last_callback = 0.0
         self._last_emit = 0.0
         self._last_peak = 0.0
+        self._segment_peak = 0.0
         self._mono_tail = np.zeros(0, dtype=np.float32)
         self._fatal_error: tuple[str, str] | None = None
         self._auto_stop_reason = ""
+        self._silent_since = None
         self._sleep_prevented = False
 
     # ------------------------------------------------------------------ 公共 API
@@ -193,9 +195,11 @@ class Recorder(QObject):
             self._last_callback = time.monotonic()
             self._last_emit = 0.0
             self._last_peak = 0.0
+            self._segment_peak = 0.0
             self._mono_tail = np.zeros(0, dtype=np.float32)
             self._fatal_error = None
             self._auto_stop_reason = ""
+            self._silent_since = None
             self._thread = threading.Thread(
                 target=self._run, name="AudioCapture", daemon=True
             )
@@ -523,6 +527,8 @@ class Recorder(QObject):
 
             if self._pause_event.is_set():
                 continue
+            # 每个音频块重新计算峰值，否则 _last_peak 一旦被非零值锁住就永远不回零
+            self._last_peak = 0.0
             try:
                 self._write_chunk(chunk)
             except SinkCapacityError as exc:
@@ -545,6 +551,20 @@ class Recorder(QObject):
                 log.info("达到最长录制时间 %d 秒，自动停止", request.max_seconds)
                 self.stop("已达设定时长")
                 # 继续循环以排空队列
+            # 无声自动停止：仅当启用时生效
+            if (
+                request.silent_auto_stop_enabled
+                and request.silent_timeout_seconds > 0
+                and not self._pause_event.is_set()
+            ):
+                if self._last_peak <= 0.0001:
+                    if getattr(self, "_silent_since", None) is None:
+                        self._silent_since = time.monotonic()
+                    elif time.monotonic() - self._silent_since >= request.silent_timeout_seconds:
+                        log.info("连续 %d 秒无声，自动停止", request.silent_timeout_seconds)
+                        self.stop("无声超时")
+                else:
+                    self._silent_since = None
             if self._should_split():
                 self._rotate_segment()
 
@@ -586,6 +606,7 @@ class Recorder(QObject):
             self._mono_tail = mono[-VISUAL_SAMPLES:].copy()
         if peaks:
             self._last_peak = max(self._last_peak, max(peaks))
+            self._segment_peak = max(self._segment_peak, max(peaks))
 
         now = time.monotonic()
         if now - self._last_emit >= 0.05:
@@ -664,6 +685,7 @@ class Recorder(QObject):
         self._segment_final = final_path
         self._segment_frames = 0
         self._segment_started_at = time.monotonic()
+        self._segment_peak = 0.0
         sample_format = get_sample_format(request.bit_depth)
 
         if fmt.requires_ffmpeg:
@@ -720,6 +742,26 @@ class Recorder(QObject):
             return
         request = self._request
         assert request is not None
+        # 无声音数据的文件不保存（可选）
+        if (
+            getattr(request, "discard_silent_files", False)
+            and self._segment_peak <= 0.0001
+        ):
+            log.info("本段无有效声音，按设置丢弃：%s", final_path)
+            sink.abort()
+            if temp_path:
+                try:
+                    temp_path.unlink(missing_ok=True)
+                except OSError:
+                    pass
+            # part file cleanup
+            try:
+                sink.part_path.unlink(missing_ok=True)
+            except OSError:
+                pass
+            self._sink = None
+            self._segment_final = None
+            return
         fmt = get_output_format(request.output_format)
         tags = self._build_tags(final_path, frames)
         try:

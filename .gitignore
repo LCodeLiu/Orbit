@@ -14,16 +14,9 @@ dist/
 .testdata/
 docs/crop_*.png
 *.log
+data/*.json
+tools/
 
 # IDE
 .idea/
 .vscode/
-
-# 录音输出（不应提交）
-Recordings/
-*.wav
-*.flac
-*.m4a
-*.mp3
-*.aac
-*.ogg

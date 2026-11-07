@@ -281,7 +281,12 @@ def set_log_level(level: str) -> None:
     level = level.upper()
     if level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
         level = "INFO"
-    logging.getLogger().setLevel(getattr(logging, level))
+    new_val = getattr(logging, level)
+    root = logging.getLogger()
+    if root.level == new_val:
+        # 级别未变化，不重复写日志
+        return
+    root.setLevel(new_val)
     logging.getLogger("orbit").info("日志级别切换为 %s", level)
 
 

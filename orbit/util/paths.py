@@ -23,19 +23,18 @@ from pathlib import Path
 
 from orbit.constants import ORG_NAME
 
+# 项目根目录（orbit 包的上两级）
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
 
 def app_data_dir() -> Path:
-    """配置目录：%APPDATA%\\Orbit。"""
-    base = os.environ.get("APPDATA")
-    root = Path(base) if base else Path.home() / "AppData" / "Roaming"
-    return root / ORG_NAME
+    """配置目录：项目根目录下的 data/。"""
+    return _PROJECT_ROOT / "data"
 
 
 def local_data_dir() -> Path:
-    """日志目录：%LOCALAPPDATA%\\Orbit。"""
-    base = os.environ.get("LOCALAPPDATA")
-    root = Path(base) if base else Path.home() / "AppData" / "Local"
-    return root / ORG_NAME
+    """日志目录：项目根目录下的 logs/。"""
+    return _PROJECT_ROOT / "logs"
 
 
 def config_path() -> Path:
@@ -43,7 +42,7 @@ def config_path() -> Path:
 
 
 def log_dir() -> Path:
-    return local_data_dir() / "logs"
+    return local_data_dir()
 
 
 def default_output_dir() -> Path:

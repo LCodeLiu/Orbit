@@ -73,6 +73,9 @@ class RecordingRequest:
     split_bytes: int = 0
     ffmpeg_path: str = ""
     max_seconds: int = 0
+    silent_auto_stop_enabled: bool = False
+    silent_timeout_seconds: int = 6
+    discard_silent_files: bool = False
 
 
 @dataclass

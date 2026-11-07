@@ -14,7 +14,7 @@
 
 """配置持久化。
 
-配置保存在 %APPDATA%\\Orbit\\config.json。
+配置保存在 .\\data\\config.json。
 使用原子替换写入，损坏的配置会被备份并回退到默认值。
 """
 
@@ -57,10 +57,14 @@ class AppConfig:
     max_minutes: int = 0
     schedule_enabled: bool = False
     schedule_time: str = "23:00"
+    silent_auto_stop_enabled: bool = False
+    silent_timeout_seconds: int = 6
+    discard_silent_files: bool = False
 
     # 系统集成
     close_to_tray: bool = True
     notify_on_complete: bool = True
+    lossy_format_warning_enabled: bool = True
     hotkeys_enabled: bool = False
     tray_hint_shown: bool = False
 
@@ -96,6 +100,7 @@ class AppConfig:
         self.split_minutes = max(0, min(24 * 60, int(self.split_minutes or 0)))
         self.split_size_mb = max(0, min(64 * 1024, int(self.split_size_mb or 0)))
         self.max_minutes = max(0, min(24 * 60, int(self.max_minutes or 0)))
+        self.silent_timeout_seconds = max(1, min(60, int(self.silent_timeout_seconds or 6)))
 
         if self.log_level not in {"DEBUG", "INFO", "WARNING", "ERROR"}:
             self.log_level = "INFO"
@@ -171,15 +176,18 @@ class ConfigStore:
             "saved_at": datetime.now().isoformat(timespec="seconds"),
             "settings": cfg.to_dict(),
         }
+        text = json.dumps(payload, ensure_ascii=False, indent=2)
+        # 原子写入：临时文件 + os.replace
         fd, tmp_name = tempfile.mkstemp(
             prefix="config-", suffix=".tmp", dir=str(self.path.parent)
         )
         try:
             with os.fdopen(fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False, indent=2)
+                handle.write(text)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(tmp_name, self.path)
+            log.info("配置已保存：%s", self.path)
         finally:
             if os.path.exists(tmp_name):
                 try:

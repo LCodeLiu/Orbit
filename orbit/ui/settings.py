@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 import PySide6
 import soundfile as sf
-from PySide6.QtCore import QTime, QTimer
+from PySide6.QtCore import QTime, QTimer, Signal, Qt
 from PySide6.QtWidgets import (
     QAbstractSpinBox,
     QApplication,
@@ -52,7 +52,7 @@ from PySide6.QtWidgets import (
 from orbit import __version__
 from orbit.audio.devices import enumerate_devices
 from orbit.audio.ffmpeg import inspect_ffmpeg
-from orbit.config import AppConfig
+from orbit.config import AppConfig, ConfigStore
 from orbit.ui.theme import Colors, icon, _apply_dark_titlebar as _apply_dark_titlebar
 
 from orbit.util.paths import (
@@ -83,11 +83,16 @@ def _section(title: str, subtitle: str = "") -> tuple[QFrame, QVBoxLayout]:
 
 
 class SettingsDialog(QDialog):
+    """设置对话框：任何控件变更立即写入配置并生效。"""
+
+    changed = Signal()
+
     def __init__(
         self,
         cfg: AppConfig,
         tray_available: bool = True,
         parent: QWidget | None = None,
+        store: ConfigStore | None = None,
     ) -> None:
         super().__init__(parent)
         self.setWindowTitle("设置 · Orbit")
@@ -95,9 +100,11 @@ class SettingsDialog(QDialog):
         self.setModal(True)
         self.resize(720, 640)
         self.setMinimumSize(660, 560)
-        self.cfg = AppConfig.from_dict(cfg.to_dict())
+        self.cfg = cfg
         self.result_config = cfg
         self._tray_available = tray_available
+        self._store = store
+        self._loading = True
 
         root = QVBoxLayout(self)
         root.setContentsMargins(22, 18, 22, 16)
@@ -111,7 +118,7 @@ class SettingsDialog(QDialog):
         titles.setSpacing(1)
         title = QLabel("设置")
         title.setStyleSheet("font-size: 20px; font-weight: 650; color: #F4F6FC;")
-        subtitle = QLabel("更改会在保存后立即生效；录音进行中时部分选项不可用。")
+        subtitle = QLabel("更改会自动保存并立即生效；录音进行中时部分选项不可用。")
         subtitle.setObjectName("Muted")
         titles.addWidget(title)
         titles.addWidget(subtitle)
@@ -131,7 +138,7 @@ class SettingsDialog(QDialog):
         self.path_hint = QLabel("")
         self.path_hint.setObjectName("Tiny")
         footer.addWidget(self.path_hint, 1)
-        cancel = QPushButton("取消")
+        cancel = QPushButton("关闭")
         cancel.setObjectName("Ghost")
         cancel.clicked.connect(self.reject)
         save = QPushButton("保存设置")
@@ -139,6 +146,9 @@ class SettingsDialog(QDialog):
         save.clicked.connect(self._save)
         footer.addWidget(cancel)
         footer.addWidget(save)
+
+        self._connect_autosave()
+        self._loading = False
 
     def showEvent(self, event) -> None:  # noqa: ANN001
         super().showEvent(event)
@@ -163,42 +173,69 @@ class SettingsDialog(QDialog):
         row = 0
         grid.addWidget(QLabel("音频缓冲"), row, 0)
         self.buffer_spin = QSpinBox()
+        self.buffer_spin.setMinimumWidth(120)
         self.buffer_spin.setRange(5, 200)
         self.buffer_spin.setSuffix(" ms")
         self.buffer_spin.setValue(self.cfg.buffer_ms)
-        self.buffer_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.buffer_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.buffer_spin.setToolTip("WASAPI 回调每次处理的音频时长")
         grid.addWidget(self.buffer_spin, row, 1)
         row += 1
 
         grid.addWidget(QLabel("最长录制"), row, 0)
         self.max_spin = QSpinBox()
+        self.max_spin.setMinimumWidth(120)
         self.max_spin.setRange(0, 24 * 60)
         self.max_spin.setSuffix(" 分钟")
         self.max_spin.setSpecialValueText("不限")
         self.max_spin.setValue(self.cfg.max_minutes)
-        self.max_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.max_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         grid.addWidget(self.max_spin, row, 1)
         row += 1
 
         grid.addWidget(QLabel("按时长分割"), row, 0)
         self.split_min_spin = QSpinBox()
+        self.split_min_spin.setMinimumWidth(120)
         self.split_min_spin.setRange(0, 24 * 60)
         self.split_min_spin.setSuffix(" 分钟")
         self.split_min_spin.setSpecialValueText("关闭")
         self.split_min_spin.setValue(self.cfg.split_minutes)
-        self.split_min_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.split_min_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         grid.addWidget(self.split_min_spin, row, 1)
         row += 1
 
         grid.addWidget(QLabel("按大小分割"), row, 0)
         self.split_mb_spin = QSpinBox()
+        self.split_mb_spin.setMinimumWidth(120)
         self.split_mb_spin.setRange(0, 64 * 1024)
         self.split_mb_spin.setSuffix(" MB")
         self.split_mb_spin.setSpecialValueText("关闭")
         self.split_mb_spin.setValue(self.cfg.split_size_mb)
-        self.split_mb_spin.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.split_mb_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
         grid.addWidget(self.split_mb_spin, row, 1)
+        row += 1
+
+        grid.addWidget(QLabel("无声自动停止"), row, 0)
+        self.silent_stop_check = QCheckBox("启用")
+        self.silent_stop_check.setChecked(self.cfg.silent_auto_stop_enabled)
+        grid.addWidget(self.silent_stop_check, row, 1)
+        row += 1
+
+        grid.addWidget(QLabel("无声超时阈值"), row, 0)
+        self.silent_timeout_spin = QSpinBox()
+        self.silent_timeout_spin.setMinimumWidth(120)
+        self.silent_timeout_spin.setRange(1, 60)
+        self.silent_timeout_spin.setSuffix(" 秒")
+        self.silent_timeout_spin.setValue(self.cfg.silent_timeout_seconds)
+        self.silent_timeout_spin.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        grid.addWidget(self.silent_timeout_spin, row, 1)
+        row += 1
+
+        self.discard_silent_check = QCheckBox("无声音数据的文件不保存")
+        self.discard_silent_check.setChecked(self.cfg.discard_silent_files)
+        grid.addWidget(self.discard_silent_check, row, 0, 1, 2)
+        row += 1
+
         box_layout.addLayout(grid)
         note = QLabel(
             "两个分割阈值同时存在时，先达到任一条件即切换新文件。"
@@ -242,10 +279,11 @@ class SettingsDialog(QDialog):
         time_row.setSpacing(10)
         time_row.addWidget(QLabel("开始时间"))
         self.schedule_time = QTimeEdit()
+        self.schedule_time.setMinimumWidth(120)
         self.schedule_time.setDisplayFormat("HH:mm")
         hour, minute = (int(x) for x in self.cfg.schedule_time.split(":"))
         self.schedule_time.setTime(QTime(hour, minute))
-        self.schedule_time.setButtonSymbols(QAbstractSpinBox.ButtonSymbols.NoButtons)
+        self.schedule_time.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.schedule_time.setFixedWidth(110)
         time_row.addWidget(self.schedule_time)
         time_row.addStretch(1)
@@ -277,6 +315,12 @@ class SettingsDialog(QDialog):
         )
         self.hotkey_check.setChecked(self.cfg.hotkeys_enabled)
         box_layout.addWidget(self.hotkey_check)
+
+        self.lossy_warning_check = QCheckBox(
+            "使用有损格式（MP3 / AAC / OGG / ALAC）录音时弹出确认提示"
+        )
+        self.lossy_warning_check.setChecked(self.cfg.lossy_format_warning_enabled)
+        box_layout.addWidget(self.lossy_warning_check)
         if not self._tray_available:
             tip = QLabel("当前系统未提供托盘区域，相关选项不可用。")
             tip.setObjectName("Warning")
@@ -324,6 +368,7 @@ class SettingsDialog(QDialog):
         level_row = QHBoxLayout()
         level_row.addWidget(QLabel("日志级别"))
         self.level_combo = QComboBox()
+        self.level_combo.setMinimumWidth(180)
         for text, value in (
             ("信息（推荐）", "INFO"),
             ("详细调试", "DEBUG"),
@@ -399,21 +444,67 @@ class SettingsDialog(QDialog):
         dialog = DiagnosticsDialog(self)
         dialog.exec()
 
-    def _save(self) -> None:
+    def _connect_autosave(self) -> None:
+        """把所有控件的信号接到自动保存。"""
+        pairs = [
+            (self.buffer_spin, self.buffer_spin.valueChanged),
+            (self.max_spin, self.max_spin.valueChanged),
+            (self.split_min_spin, self.split_min_spin.valueChanged),
+            (self.split_mb_spin, self.split_mb_spin.valueChanged),
+            (self.silent_stop_check, self.silent_stop_check.toggled),
+            (self.silent_timeout_spin, self.silent_timeout_spin.valueChanged),
+            (self.discard_silent_check, self.discard_silent_check.toggled),
+            (self.schedule_check, self.schedule_check.toggled),
+            (self.schedule_time, self.schedule_time.timeChanged),
+            (self.tray_check, self.tray_check.toggled),
+            (self.notify_check, self.notify_check.toggled),
+            (self.hotkey_check, self.hotkey_check.toggled),
+            (self.lossy_warning_check, self.lossy_warning_check.toggled),
+            (self.ffmpeg_edit, self.ffmpeg_edit.textChanged),
+            (self.level_combo, self.level_combo.currentIndexChanged),
+        ]
+        for _widget, signal in pairs:
+            signal.connect(self._on_widget_changed)
+
+    def _collect(self) -> None:
         cfg = self.cfg
         cfg.buffer_ms = self.buffer_spin.value()
         cfg.max_minutes = self.max_spin.value()
         cfg.split_minutes = self.split_min_spin.value()
         cfg.split_size_mb = self.split_mb_spin.value()
+        cfg.silent_auto_stop_enabled = self.silent_stop_check.isChecked()
+        cfg.silent_timeout_seconds = self.silent_timeout_spin.value()
+        cfg.discard_silent_files = self.discard_silent_check.isChecked()
         cfg.schedule_enabled = self.schedule_check.isChecked()
         cfg.schedule_time = self.schedule_time.time().toString("HH:mm")
         cfg.close_to_tray = self.tray_check.isChecked() if self._tray_available else False
         cfg.notify_on_complete = self.notify_check.isChecked()
         cfg.hotkeys_enabled = self.hotkey_check.isChecked()
+        cfg.lossy_format_warning_enabled = self.lossy_warning_check.isChecked()
         cfg.ffmpeg_path = self.ffmpeg_edit.text().strip()
         cfg.log_level = self.level_combo.currentData() or "INFO"
         cfg.normalize()
         self.result_config = cfg
+
+    def _on_widget_changed(self, *_args) -> None:
+        if self._loading:
+            return
+        self._collect()
+        if self._store is not None:
+            try:
+                self._store.save(self.cfg)
+            except Exception as exc:
+                log.exception("设置自动保存失败：%s", exc)
+        self.changed.emit()
+
+    def _save(self) -> None:
+        self._collect()
+        if self._store is not None:
+            try:
+                self._store.save(self.cfg)
+            except Exception as exc:
+                log.exception("设置保存失败：%s", exc)
+        self.changed.emit()
         self.accept()
 
 class DiagnosticsDialog(QDialog):

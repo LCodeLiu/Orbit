@@ -22,7 +22,7 @@
 - **系统集成**：托盘运行、关闭到托盘、全局/局部快捷键、完成通知、单实例保护。
 - **文件管理**：录音列表、试听（QtMultimedia，带音量/静音调节）、在资源管理器中定位、移至回收站、双击试听。
 - **元数据**：标题、设备、日期、格式、软件版本；WAV RIFF INFO、FLAC Vorbis Comment、FFmpeg 输出标签。WAV 的 INFO 文本按系统 ANSI 代码页（简体中文=GBK）编码并 NUL 结尾，确保 Windows 资源管理器的"标题/作者/唱片集/备注"列正确显示中英文。
-- **配置持久化**：`%APPDATA%\Orbit\config.json`；日志 `%LOCALAPPDATA%\Orbit\logs\app.log`。
+- **配置持久化**：`.\data\config.json`；日志 `.\logs\app.log`。
 
 ---
 
@@ -49,10 +49,6 @@
 - **调试日志**
 
 ![调试日志](docs/logs.png)
-
-- **运行环境诊断**
-
-![运行环境诊断](docs/diagnostics.png)
 
 ---
 
@@ -121,7 +117,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-**注意**：指令 `cd /d "<Orbit根目录绝对路径>"` 中 `<Orbit根目录绝对路径>` 是项目根目录路径，该路径下包含run.py、requirements.txt等文件，需替换为实际路径。为保证指令正确执行，建议将路径中的"\\"替换为"\\\\"。例如：根目录处于E:\\下载\\Orbit，则指令为 `cd /d "E:\\\\下载\\\\Orbit"`。
+**注意**：指令 `cd /d "<Orbit根目录绝对路径>"` 中 `<Orbit根目录绝对路径>` 是项目根目录路径，该路径下包含run.py、requirements.txt等文件，需替换为实际路径。为保证指令正确执行，建议将路径中的"\"替换为"\\"。例如：根目录处于E:\下载\Orbit，则指令为 `cd /d "E:\\下载\\Orbit"`。
 
 如果系统 Python 的 `site-packages` 不可写，pip 会自动安装到当前用户目录；这是正常的。
 
@@ -141,11 +137,8 @@ orbit --version
 
 ### 安装 FFmpeg（ALAC / 有损格式需要）
 
-任选一种：
-
 - 下载 Windows 版 FFmpeg，将FFmpeg根目录下的 `bin` 目录加入环境变量 `PATH`；
-- 源码运行时，也可把 `ffmpeg.exe` 放到项目下的 `tools\\ffmpeg\\bin\\ffmpeg.exe`；
-- 或在应用内打开 **设置 → 系统集成 → FFmpeg**，手动选择 `ffmpeg.exe`。
+- 应用内打开 **设置 → 系统集成 → FFmpeg**，点击**检测**可以自动扫描ffmpeg，或手动选择 `ffmpeg.exe`。
 
 验证：
 
@@ -302,48 +295,49 @@ Windows 共享回环通常只接受设备当前混音采样率（例如 48,000 H
 
 ```text
 Orbit_windows/
-├─ orbit/
-│  ├─ __init__.py             # 包入口，导出 __version__
+├─ orbit/                     # 应用包
+│  ├─ __init__.py             # 包入口，re-export __version__（来自 constants）
 │  ├─ __main__.py             # python -m orbit 入口
-│  ├─ app.py                  # 应用入口、单实例、CLI 诊断、深色标题栏
-│  ├─ config.py               # 配置模型与原子持久化
-│  ├─ constants.py            # 应用名、版本、WAV 上限、扩展名等常量
+│  ├─ app.py                  # 应用入口、单实例、CLI 诊断、深色标题栏、控制台附着
+│  ├─ config.py               # 配置模型与原子持久化（项目 data/ 下）
+│  ├─ constants.py            # 应用名、版本号、WAV 上限、扩展名等常量
 │  ├─ logging_setup.py        # 滚动日志 + Qt 日志桥
 │  ├─ models.py               # 设备/请求/结果数据类
-│  ├─ audio/
+│  ├─ audio/                  # 音频子系统
+│  │  ├─ __init__.py
 │  │  ├─ devices.py           # WASAPI 回环设备扫描（后台线程）
 │  │  ├─ monitor.py           # 空闲实时监听
 │  │  ├─ formats.py           # 格式、位深、采样率能力定义
 │  │  ├─ portaudio.py         # PortAudio 跨线程串行化与流占用交接
-│  │  ├─ recorder.py          # 采集线程、队列、分段、统计
+│  │  ├─ recorder.py          # 采集线程、有界队列、分段、统计
 │  │  ├─ sinks.py             # WAV 写入、FLAC 流式写入
 │  │  ├─ analysis.py          # PCM 解码、电平/频谱
 │  │  ├─ ffmpeg.py            # 编码器探测、转码、ffprobe
 │  │  └─ metadata.py          # FLAC 标签
-│  ├─ ui/
-│  │  ├─ main_window.py       # 主窗口、状态机、文件/托盘/日程
+│  ├─ ui/                     # 界面
+│  │  ├─ __init__.py
+│  │  ├─ main_window.py       # 主窗口、状态机、文件/托盘/日程/设置实时应用
 │  │  ├─ widgets.py           # 电平表、波形、频谱、播放条等
-│  │  ├─ settings.py          # 设置与诊断对话框
+│  │  ├─ settings.py          # 设置/诊断对话框（控件变更实时保存）
 │  │  └─ theme.py             # 颜色、QSS、图标、深色标题栏
-│  ├─ util/
+│  ├─ util/                   # 工具
+│  │  ├─ __init__.py
 │  │  ├─ exit_guard.py        # 退出看门狗（卡死时强制结束）
 │  │  ├─ hotkeys.py           # 全局快捷键（Win32 RegisterHotKey）
 │  │  ├─ naming.py            # 文件名模板与非法字符处理
-│  │  ├─ paths.py             # 路径、文件大小、系统外壳打开
+│  │  ├─ paths.py             # 路径（项目 data/logs）、文件大小、外壳打开
 │  │  └─ shell.py             # 回收站移除（SHFileOperationW）
-│  └─ assets/
+│  └─ assets/                 # 静态资源
 │     ├─ app.ico / app.png    # 应用图标
-│     └─ icons/*.svg          # 19 个界面 SVG 图标
-├─ tests/                     # pytest 单元测试（29 个）
-├─ tools/                     # 开发期诊断与截图脚本
-│  ├─ capture_all.py          # 生成全套深色主题截图（含录音态/频谱/日志）
-│  ├─ check_runpyw.py         # run.pyw 端到端启动→录音→校验→退出
-│  ├─ probe_*.py              # 真实设备/格式/录音/监听/热键/交接等探测
-│  ├─ screenshot_settings.py  # 设置/诊断对话框截图
-│  └─ screenshot_ui.py        # 旧版界面截图脚本
+│     ├─ logo.svg             # Logo
+│     └─ icons/               # 界面图标（16 个 SVG：播放/暂停/停止/设置/终端等）
+├─ tests/                     # pytest 单元测试（7 个文件 / 29 个用例）
 ├─ docs/                      # README 截图（8 张，深色主题）
-├─ .vscode/settings.json      # VS Code Python 环境配置
+├─ data/                      # 运行时生成：config.json（项目内）
+├─ logs/                      # 运行时生成：app.log（项目内）
 ├─ .gitignore
+├─ LICENSE                    # Apache-2.0
+├─ VERSION.md                 # 版本变更记录
 ├─ pyproject.toml             # 打包/依赖/入口点（pip install -e .）
 ├─ pytest.ini                 # pytest 配置（testpaths=tests）
 ├─ requirements.txt           # 运行时依赖
@@ -351,7 +345,6 @@ Orbit_windows/
 ├─ run.py                     # 源码运行入口（保留控制台）
 ├─ run.pyw                    # 日常启动入口（pythonw，无控制台）
 ├─ install.bat / start.bat    # 安装 / 调试启动脚本
-└─ ...
 ```
 
 ---
@@ -384,30 +377,6 @@ python -m pytest
 - 采样率/格式能力校验；
 - 日志文件不可写时的降级与备用日志清理；
 - PortAudio 流占用登记与释放（防计数泄漏、等待交接）。
-
-开发期实测脚本（会访问真实音频设备）：
-
-```bash
-python tools\capture_all.py          # 生成全套深色主题截图（8 张）
-python tools\screenshot_settings.py  # 设置/诊断对话框截图
-python tools\screenshot_ui.py        # 旧版界面截图脚本
-python tools\probe_sinks.py           # WAV/FLAC 写入
-python tools\probe_ffmpeg.py          # ALAC/MP3/AAC/OGG 转码
-python tools\probe_recorder.py        # 真实回环录音（各格式）
-python tools\probe_audio_quality.py   # 播放测试音并检查频率/电平
-python tools\probe_recorder_split.py  # 自动分割/最长时长/无效设备
-python tools\probe_formats_capture.py # 16-bit / 单声道 / 非原生采样率
-python tools\probe_player.py          # QtMultimedia 试听各格式
-python tools\probe_volume.py          # 试听音量滑块/静音/配置持久化
-python tools\probe_monitor.py         # 空闲实时监听与录制红点
-python tools\probe_hotkeys.py         # 全局热键注册与 WM_HOTKEY 处理
-python tools\probe_handoff.py         # 监听↔录音设备交接（流占用/释放，多轮）
-python tools\check_runpyw.py          # run.pyw 端到端：启动→录音→校验→干净退出
-```
-
-`probe_*` 会访问真实声卡和输出目录，建议在无人使用电脑时运行。
-
----
 
 ## 已知限制
 

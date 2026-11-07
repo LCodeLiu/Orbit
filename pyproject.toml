@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "orbit"
-version = "1.0.7"
-description = "Windows WASAPI loopback system audio recorder with a modern PySide6 UI"
+version = "1.0.9"
+description = "Orbit - 一个基于Windows WASAPI的音频采集工具"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Orbit" }]
