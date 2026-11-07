@@ -1,0 +1,29 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+.deps/
+*.egg-info/
+build/
+dist/
+
+# 本地测试数据
+.testdata/
+docs/crop_*.png
+*.log
+
+# IDE
+.idea/
+.vscode/
+
+# 录音输出（不应提交）
+Recordings/
+*.wav
+*.flac
+*.m4a
+*.mp3
+*.aac
+*.ogg

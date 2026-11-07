@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Track 录音软件图标 - 圆形版</title>
+
+  <!-- 圆形底盘，替代原来的圆角方形边框 -->
+  <circle cx="256" cy="256" r="212" fill="#0B1220"/>
+
+  <!-- 录音圆环，右下开口表示系统输出通道 -->
+  <path
+    d="M331 386
+       A150 150 0 1 1 406 256"
+    fill="none"
+    stroke="#0078D4"
+    stroke-width="40"
+    stroke-linecap="round"
+  />
+
+  <!-- 轨道 + 原始声波 -->
+  <path
+    d="M150 256
+       L196 256
+       L214 214
+       L234 304
+       L254 184
+       L274 324
+       L294 228
+       L312 256
+       L362 256"
+    fill="none"
+    stroke="#FFFFFF"
+    stroke-width="24"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+
+  <!-- 捕获/录制高亮点 -->
+  <circle cx="362" cy="256" r="12" fill="#4CC2FF"/>
+</svg>
