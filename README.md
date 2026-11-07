@@ -121,7 +121,7 @@ python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 ```
 
-**注意**：指令 `cd /d "<Orbit根目录绝对路径>"` 中 `<Orbit根目录绝对路径>` 是项目根目录路径，该路径下包含run.py、requirements.txt等文件，需替换为实际路径。为保证指令正确执行，建议将路径中的"\\"替换为"\\\\"。例如：根目录处于E:\\下载\\Orbit，则指令为 `cd /d "E:\\\\下载\\\\Orbit"`。
+**注意**：指令 `cd /d "<Orbit根目录绝对路径>"` 中 `<Orbit根目录绝对路径>` 是项目根目录路径，该路径下包含run.py、requirements.txt等文件，需替换为实际路径。为保证指令正确执行，建议将路径中的"\"替换为"\\"。例如：根目录处于E:\下载\Orbit，则指令为 `cd /d "E:\\下载\\Orbit"`。
 
 如果系统 Python 的 `site-packages` 不可写，pip 会自动安装到当前用户目录；这是正常的。
 
