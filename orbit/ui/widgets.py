@@ -406,7 +406,8 @@ class WaveformView(QWidget):
 
     def set_samples(self, samples: np.ndarray) -> None:
         if samples is not None and samples.size:
-            self._samples = np.asarray(samples, dtype=np.float32)[-4096:].copy()
+            # 直接使用当前块快照，不做滚动拼接，避免波形向左移动
+            self._samples = np.asarray(samples, dtype=np.float32).ravel()
             self._last_time = time.monotonic()
             self._active = True
         self.update()
@@ -468,9 +469,13 @@ class WaveformView(QWidget):
         samples = self._samples
         peak = float(np.max(np.abs(samples)))
         gain = 1.0 if peak < 1e-5 else min(7.0, 0.84 / peak)
-        # 抽稀到屏幕宽度附近，保持绘制性能
-        stride = max(1, samples.size // max(300, w * 2))
-        data = samples[::stride]
+        # 固定抽稀到 512 点，布局与块大小无关，避免波形每帧缩放/移动
+        TARGET = 512
+        stride = max(1, samples.size // TARGET)
+        data = samples[::stride][:TARGET]
+        if data.size < TARGET:
+            pad = np.zeros(TARGET - data.size, dtype=np.float32)
+            data = np.concatenate((data, pad))
         if data.size < 2:
             p.end()
             return

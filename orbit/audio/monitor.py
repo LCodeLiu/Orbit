@@ -35,7 +35,7 @@ import time
 import numpy as np
 from PySide6.QtCore import QObject, Signal
 
-from orbit.audio.analysis import block_levels, decode_to_float
+from orbit.audio.analysis import block_levels, decode_to_float, spectrum_bands
 from orbit.audio.formats import get_sample_format
 from orbit.audio.portaudio import (
     note_stream_closed,
@@ -45,7 +45,7 @@ from orbit.audio.portaudio import (
 
 log = logging.getLogger(__name__)
 
-_VISUAL_INTERVAL = 0.045  # ~22 fps，足够顺滑且不占 CPU
+_VISUAL_INTERVAL = 0.066  # ~22 fps，足够顺滑且不占 CPU
 _POLL_SECONDS = 0.02
 
 
@@ -173,18 +173,20 @@ class LiveMonitor(QObject):
                 if frames.size == 0:
                     continue
                 mono = frames.mean(axis=1, dtype=np.float32)
-                tail = np.concatenate((tail, mono))[-2048:]
+                tail = mono.copy()
                 now = time.monotonic()
                 if now - last_emit < _VISUAL_INTERVAL:
                     continue
                 last_emit = now
                 peaks, rms = block_levels(frames)
+                spectrum = spectrum_bands(tail, sample_rate)
                 self.frame_ready.emit(
                     {
                         "samples": tail.copy(),
                         "peaks": peaks,
                         "rms": rms,
                         "sample_rate": sample_rate,
+                        "spectrum": spectrum,
                     }
                 )
         except Exception as exc:

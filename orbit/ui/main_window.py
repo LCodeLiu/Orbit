@@ -980,9 +980,9 @@ class MainWindow(QMainWindow):
         rms_value = max(rms) if rms else 0.0
         self.peak_label.setText(f"峰值 {amplitude_to_db(peak):.1f} dBFS")
         self.rms_label.setText(f"RMS {amplitude_to_db(rms_value):.1f} dBFS")
-        if self.view_stack.currentIndex() == 1:
-            rate = int(frame.get("sample_rate") or 48000)
-            self.spectrum.set_bands(spectrum_bands(samples, rate))
+        spec = frame.get("spectrum")
+        if self.view_stack.currentIndex() == 1 and spec is not None:
+            self.spectrum.set_bands(spec)
 
     def _on_device_changed(self, index: int) -> None:
         device = self.device_combo.currentData()
@@ -1594,9 +1594,9 @@ class MainWindow(QMainWindow):
         rms_value = max(rms) if rms else 0.0
         self.peak_label.setText(f"峰值 {amplitude_to_db(peak):.1f} dBFS")
         self.rms_label.setText(f"RMS {amplitude_to_db(rms_value):.1f} dBFS")
-        if self.view_stack.currentIndex() == 1:
-            rate = int(frame.get("sample_rate") or self._effective_source()[0])
-            self.spectrum.set_bands(spectrum_bands(samples, rate))
+        spec = frame.get("spectrum")
+        if self.view_stack.currentIndex() == 1 and spec is not None:
+            self.spectrum.set_bands(spec)
 
     def _on_segment_started(self, path: str, part: int) -> None:
         self.metric_segment.set_value(f"第 {part} 段")

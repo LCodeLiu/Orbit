@@ -41,7 +41,7 @@ from pathlib import Path
 import numpy as np
 from PySide6.QtCore import QObject, Signal
 
-from orbit.audio.analysis import block_levels, decode_to_float
+from orbit.audio.analysis import block_levels, decode_to_float, spectrum_bands
 from orbit.audio.ffmpeg import inspect_ffmpeg, transcode
 from orbit.audio.formats import (
     get_output_format,
@@ -600,24 +600,24 @@ class Recorder(QObject):
             return
         peaks, rms = block_levels(frames)
         mono = frames.mean(axis=1, dtype=np.float32)
-        if self._mono_tail.size:
-            self._mono_tail = np.concatenate((self._mono_tail, mono))[-VISUAL_SAMPLES:]
-        else:
-            self._mono_tail = mono[-VISUAL_SAMPLES:].copy()
+        # 只保留当前块的波形快照，避免滚动拖影与高并发下的拼接开销
+        self._mono_tail = mono.copy() if mono.size else self._mono_tail
         if peaks:
             self._last_peak = max(self._last_peak, max(peaks))
             self._segment_peak = max(self._segment_peak, max(peaks))
 
         now = time.monotonic()
-        if now - self._last_emit >= 0.05:
+        if now - self._last_emit >= 0.066:
             self._last_emit = now
             self._emit_stats(peaks, rms)
+            spectrum = spectrum_bands(self._mono_tail, self._actual_rate)
             self.visual_updated.emit(
                 {
                     "samples": self._mono_tail.copy(),
                     "peaks": peaks,
                     "rms": rms,
                     "sample_rate": self._actual_rate,
+                    "spectrum": spectrum,
                 }
             )
 
